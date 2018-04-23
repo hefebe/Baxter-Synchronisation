@@ -1,0 +1,87 @@
+#!/usr/bin/python
+# alright, this one implements the slave target dynamics and interfaces
+# with the robot simulation to produce the anticipated error
+import numpy as np
+import math
+import os
+import sys
+import string
+import time
+import random
+import tf
+import struct
+
+import rospy
+
+import baxter_interface
+
+from baxter_interface import CHECK_VERSION
+
+from baxter_synchronisation.msg import Pos
+
+from geometry_msgs.msg import (
+    PoseStamped,
+    Pose,
+    Point,
+    Quaternion,
+)
+from std_msgs.msg import Header
+
+from baxter_core_msgs.srv import (
+    SolvePositionIK,
+    SolvePositionIKRequest,
+)
+
+#from baxter_pykdl import baxter_kinematics
+
+
+
+	
+class Master:
+	def __init__(self, start, speed):# takes initial conditions and time constant
+		self.state = start# state in x, y and z
+		self.mast = np.zeros(3)# state of the master
+		self.feedback = np.zeros(3)# feedback coming back from the plant
+		self.power = 1
+		
+		self.state = start# set the state
+		self.rate = speed# set the rate
+		
+		# self.a = 0.15# Rossler constants
+		# self.b = 0.2
+		# self.c = 10
+		
+	
+	def update(self):
+		self.feedback[0] = self.feedback[0] + self.rate*(self.state[0])
+		self.feedback[1] = self.feedback[1] + self.rate*(self.state[1])
+		self.feedback[2] = self.feedback[2] + self.rate*(self.state[2])
+
+		self.state[0] = self.state[0] + self.rate*(self.power-self.feedback[0])
+		self.state[1] = self.state[1] + self.rate*(self.power-self.feedback[1])
+		self.state[2] = self.state[2] + self.rate*(self.power-self.feedback[2])
+
+		    
+	
+def main():
+	starter = [0.1, -0.1, 0]
+	master_targ = Master(starter,0.05)
+	
+	rospy.init_node('master_unit')# init node
+	Master_pub = rospy.Publisher('Master_state', Pos, queue_size=10)
+
+	#NS = "ExternalTools/" + "left" + "/PositionKinematicsNode/IKService"
+        #serv = rospy.ServiceProxy(NS, SolvePositionIK, 'TRUE')
+
+
+	while not rospy.is_shutdown():
+		master_targ.update()
+		Master_pub.publish(Pos(master_targ.state[0], master_targ.state[1], master_targ.state[2]))
+		
+		#poser = ik_test(Left, slave_targ.state, 2, serv, NS)
+		#Left.set_joint_positions(poser)
+	#serv.close()
+	return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
